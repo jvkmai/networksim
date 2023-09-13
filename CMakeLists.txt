@@ -25,7 +25,6 @@ option(NS3_TESTS "Enable tests to be built" OFF)
 # fd-net-device options
 option(NS3_EMU "Build with emulation support" ON)
 option(NS3_TAP "Build with Tap support" ON)
-option(NS3_DPDK "Enable fd-net-device DPDK features" OFF)
 
 # maintenance and documentation
 option(NS3_CLANG_FORMAT "Enforce cody style with clang-format" OFF)
@@ -55,7 +54,6 @@ option(NS3_NETANIM "Build netanim" OFF)
 # other options
 option(NS3_ENABLE_BUILD_VERSION "Embed version info into libraries" OFF)
 option(NS3_CCACHE "Use Ccache to speed up recompilation" ON)
-option(NS3_CPM "Enable the CPM C++ library manager support" OFF)
 option(NS3_FAST_LINKERS "Use Mold or LLD to speed up linking if available" ON)
 option(NS3_FETCH_OPTIONAL_COMPONENTS
        "Fetch Brite, Click and Openflow dependencies" OFF
@@ -83,12 +81,11 @@ option(NS3_EIGEN "Build with Eigen support" ON)
 option(NS3_STATIC "Build a static ns-3 library and link it against executables"
        OFF
 )
-option(NS3_VCPKG "Enable the Vcpkg C++ library manager support" OFF)
 option(NS3_VERBOSE "Print additional build system messages" OFF)
 option(NS3_VISUALIZER "Build visualizer module" ON)
 option(NS3_WARNINGS "Enable compiler warnings" ON)
 option(NS3_WARNINGS_AS_ERRORS
-       "Treat warnings as errors. Requires NS3_WARNINGS=ON" ON
+       "Treat warnings as errors. Requires NS3_WARNINGS=ON" OFF
 )
 
 # Options that either select which modules will get built or disable modules
