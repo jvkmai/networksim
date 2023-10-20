@@ -106,7 +106,7 @@ int main (int argc, char *argv[]) {
   tsnHelperNode0.SetRootQueueDisc("ns3::TasQueueDisc", "NetDeviceListConfig", NetDeviceListConfigValue(schedulePlanNode0), "TimeSource", timeSource,"DataRate", StringValue ("100Mbps"));
   tsnHelperNode0.AddPacketFilter(0,"ns3::TsnIpv4PacketFilter","Classify",CallbackValue(MakeCallback(&ipv4PacketFilter)));
   
-  QueueDiscContainer qdiscsNode0 = tsnHelperNode0.Install (csmaDevices1.Get(1)); //This has to be installed on the net devices of the switch, where are they?
+  QueueDiscContainer qdiscsNode0 = tsnHelperNode0.Install (csmaDevices1.Get(1));
   QueueDiscContainer qdiscsNode1 = tsnHelperNode0.Install (csmaDevices2.Get(3));
 
   // Assign IP addresses.
@@ -155,11 +155,9 @@ int main (int argc, char *argv[]) {
     Ptr<NetDevice> senderIf;
     Ipv4Address senderAddress;
     if (i == 0) {
-      // If it's node 0, then it's connected to csmaDevices1.
       senderIf = csmaDevices1.Get(0);
       senderAddress = interfaces1.GetAddress(0, 0);
     } else {
-      // Otherwise it's connected to csmaDevices2.
       senderIf = csmaDevices2.Get(i-1);
       senderAddress = interfaces2.GetAddress(i-1, 0);
     }
