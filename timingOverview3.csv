@@ -1,0 +1,6 @@
+Average send time between first 10 packages [μs],500
+Average send time between packages [μs],1102.52
+Average receive time difference [μs],15226.1
+Longest receive time difference [μs],28988
+Dropped packages,5460
+Total packages,4532

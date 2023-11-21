@@ -54,17 +54,42 @@ int main (int argc, char *argv[]) {
   NodeContainer nodes;
   nodes.Create (4);
 
+  NS_LOG_INFO ("Create bridge node.");
+  NodeContainer bridgeNode;
+  bridgeNode.Create (1);
+
   // Connect nodes with a csma link.
   NS_LOG_INFO ("Create csma channel.");
   CsmaHelper csma;
   csma.SetChannelAttribute ("DataRate", StringValue ("100Mbps"));
   csma.SetChannelAttribute ("Delay", StringValue ("0ms"));
-  NetDeviceContainer devices = csma.Install (nodes);
+
+  NS_LOG_INFO ("Create first csma channel.");
+  NodeContainer csmaNodes1;
+  csmaNodes1.Add(nodes.Get(0)); // Add node0
+  csmaNodes1.Add(bridgeNode.Get(0)); // Add bridge node
+  NetDeviceContainer csmaDevices1 = csma.Install(csmaNodes1); // Install the CSMA channel
+
+  NS_LOG_INFO ("Create second csma channel.");
+  NodeContainer csmaNodes2;
+  csmaNodes2.Add(nodes.Get(1)); // Add node1
+  csmaNodes2.Add(nodes.Get(2)); // Add node2
+  csmaNodes2.Add(nodes.Get(3)); // Add node3
+  csmaNodes2.Add(bridgeNode.Get(0)); // Add bridge node
+  NetDeviceContainer csmaDevices2 = csma.Install(csmaNodes2); // Install the CSMA channel
 
   // Install the internet stack on the nodes
   NS_LOG_INFO ("Install internet stack on nodes.");
   InternetStackHelper stack;
   stack.Install (nodes);
+  stack.Install (bridgeNode);
+
+  NS_LOG_INFO ("Configure the bridge node.");
+  BridgeHelper bridge;
+  NetDeviceContainer bridgeDevices;
+  bridgeDevices.Add (csmaDevices1.Get (1));
+  bridgeDevices.Add (csmaDevices2.Get (3));
+  bridge.Install (bridgeNode.Get (0), bridgeDevices);
 
   // Setup TSN on all nodes
   CallbackValue timeSource = MakeCallback(&callbackfunc);
@@ -72,23 +97,25 @@ int main (int argc, char *argv[]) {
   NetDeviceListConfig schedulePlanNode0, schedulePlanNode1, schedulePlanNode2, schedulePlanNode3;
 
   for (int i = 0; i < NUMBER_OF_SCHEDULE_ENTRYS; i++) {
-    schedulePlanNode0.Add(MilliSeconds(2),{0,0,0,0,1,0,0,0});
-    schedulePlanNode0.Add(MilliSeconds(2),{0,0,1,0,0,0,0,0});
-    schedulePlanNode0.Add(MilliSeconds(2),{1,1,0,1,0,1,1,1});
+    //schedulePlanNode0.Add(MilliSeconds(1),{0,0,0,0,1,0,0,0});
+    //schedulePlanNode0.Add(MilliSeconds(1),{0,1,0,0,0,0,0,0});
+    schedulePlanNode0.Add(MilliSeconds(3),{1,0,1,1,0,1,1,1});
     //schedulePlanNode0.Add(MilliSeconds(6),{1,1,1,1,1,1,1,1});
   }
 
   tsnHelperNode0.SetRootQueueDisc("ns3::TasQueueDisc", "NetDeviceListConfig", NetDeviceListConfigValue(schedulePlanNode0), "TimeSource", timeSource,"DataRate", StringValue ("100Mbps"));
   tsnHelperNode0.AddPacketFilter(0,"ns3::TsnIpv4PacketFilter","Classify",CallbackValue(MakeCallback(&ipv4PacketFilter)));
   
-  QueueDiscContainer qdiscsNode0 = tsnHelperNode0.Install (devices.Get(0));
+  QueueDiscContainer qdiscsNode0 = tsnHelperNode0.Install (csmaDevices1.Get(1));
+  QueueDiscContainer qdiscsNode1 = tsnHelperNode0.Install (csmaDevices2.Get(3));
 
   // Assign IP addresses.
   NS_LOG_INFO ("Assign IP addresses.");
   Ipv4AddressHelper address;
   address.SetBase ("137.226.8.0", "255.255.255.0");
-  Ipv4InterfaceContainer interfaces = address.Assign (devices);
-  
+  Ipv4InterfaceContainer interfaces1 = address.Assign (csmaDevices1);
+  Ipv4InterfaceContainer interfaces2 = address.Assign (csmaDevices2);
+
   // // Change IP address of node 0 to "137.226.8.70"
   // Ptr<Node> node0 = nodes.Get (0);
   // Ptr<Ipv4> ipv4 = node0->GetObject<Ipv4> ();
@@ -118,31 +145,47 @@ int main (int argc, char *argv[]) {
   // ipv4->AddAddress(interface, Ipv4InterfaceAddress (Ipv4Address ("137.226.8.75"), Ipv4Mask ("255.255.255.0")));
   
   
- // Setup multicast routing
+  // Setup multicast routing
   // Every node will get a multicast route to every other node
   Ipv4Address multicastGroup("239.255.0.1");
   Ipv4StaticRoutingHelper multicast;
 
   for (uint32_t i = 0; i < nodes.GetN(); ++i) {
     Ptr<Node> sender = nodes.Get(i);
-    Ptr<NetDevice> senderIf = sender->GetDevice(0);
+    Ptr<NetDevice> senderIf;
+    Ipv4Address senderAddress;
+    if (i == 0) {
+      senderIf = csmaDevices1.Get(0);
+      senderAddress = interfaces1.GetAddress(0, 0);
+    } else {
+      senderIf = csmaDevices2.Get(i-1);
+      senderAddress = interfaces2.GetAddress(i-1, 0);
+    }
   
     for (uint32_t j = 0; j < nodes.GetN(); ++j) {
       if (j != i) {
         Ptr<Node> multicastRouter = nodes.Get(j);
-        Ptr<NetDevice> inputIf = multicastRouter->GetDevice(0);
-
-        Ipv4Address multicastSource = interfaces.GetAddress(i, 0);
+        Ptr<NetDevice> inputIf;
+        Ipv4Address multicastSource;
       
-        multicast.AddMulticastRoute(multicastRouter, multicastSource, multicastGroup, inputIf, NetDeviceContainer());
+        if (j == 0) {
+          inputIf = csmaDevices1.Get(0);
+          multicastSource = interfaces1.GetAddress(0, 0);
+        } else {
+          inputIf = csmaDevices2.Get(j-1);
+          multicastSource = interfaces2.GetAddress(j-1, 0);
+        }
+      
+        multicast.AddMulticastRoute(multicastRouter, senderAddress, multicastGroup, inputIf, NetDeviceContainer());
         multicast.SetDefaultMulticastRoute(sender, senderIf);
       
-        Ipv4Address reverseMulticastSource = interfaces.GetAddress(j, 0);
-        Ptr<Node> reverseMulticastRouter = nodes.Get(i);
-        Ptr<NetDevice> reverseInputIf = reverseMulticastRouter->GetDevice(0);
+        Ipv4Address reverseMulticastSource = multicastSource;
+        Ptr<Node> reverseMulticastRouter = sender;
+        Ptr<NetDevice> reverseInputIf = senderIf;
       
         multicast.AddMulticastRoute(reverseMulticastRouter, reverseMulticastSource, multicastGroup, reverseInputIf, NetDeviceContainer());
         multicast.SetDefaultMulticastRoute(multicastRouter, inputIf);
+        
       }
     }
   }
@@ -150,14 +193,14 @@ int main (int argc, char *argv[]) {
 
   // Publisher application on first node.
   NS_LOG_INFO ("Create publisher app.");
-  PublisherAppHelper publisherHelper(interfaces.GetAddress(0));
+  PublisherAppHelper publisherHelper(interfaces1.GetAddress(0));
   ApplicationContainer publisherApp = publisherHelper.Install(nodes.Get(0));
   publisherApp.Start(Seconds(1.0));
   publisherApp.Stop(Seconds(10.0));
 
   // Subscriber application on second node.
   NS_LOG_INFO ("Create subscriber app.");
-  SubscriberAppHelper subscriberHelper1(interfaces.GetAddress(1));
+  SubscriberAppHelper subscriberHelper1(interfaces2.GetAddress(0));
   subscriberHelper1.SetAttribute("TopicName", StringValue("HELLOEARTH"));
   subscriberHelper1.SetAttribute("TopicType", StringValue("TEST"));
   ApplicationContainer subscriberApp1 = subscriberHelper1.Install(nodes.Get(1));
@@ -166,7 +209,7 @@ int main (int argc, char *argv[]) {
 
   // Subscriber application on third node.
   NS_LOG_INFO ("Create subscriber app.");
-  SubscriberAppHelper subscriberHelper2(interfaces.GetAddress(2));
+  SubscriberAppHelper subscriberHelper2(interfaces2.GetAddress(1));
   subscriberHelper2.SetAttribute("TopicName", StringValue("HELLOMARS"));
   subscriberHelper2.SetAttribute("TopicType", StringValue("TEST"));
   ApplicationContainer subscriberApp2 = subscriberHelper2.Install(nodes.Get(2));
@@ -175,7 +218,7 @@ int main (int argc, char *argv[]) {
 
   // Subscriber application on fourth node.
   NS_LOG_INFO ("Create subscriber app.");
-  SubscriberAppHelper subscriberHelper3(interfaces.GetAddress(3));
+  SubscriberAppHelper subscriberHelper3(interfaces2.GetAddress(2));
   subscriberHelper3.SetAttribute("TopicName", StringValue("HELLOSATURN"));
   subscriberHelper3.SetAttribute("TopicType", StringValue("TEST"));
   ApplicationContainer subscriberApp3 = subscriberHelper3.Install(nodes.Get(3));
